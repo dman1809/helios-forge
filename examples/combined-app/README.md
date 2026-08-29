@@ -6,14 +6,19 @@
 
 This branch turns the combined-agent example into a focused hackathon demo: two
 Codex candidates work in isolated Runloop Devboxes, an external deterministic
-judge compares their patches, and one evidence-only repair turn closes the
-remaining failure. The first screen is the operating console, not a landing
-page.
+judge compares their patches, and a failing winner receives at most one
+evidence-only repair turn. The first screen is the operating console, not a
+landing page.
 
-- **Replay** replays a recorded real run and is always labeled `REPLAY`.
+- **Replay** replays recorded real evidence and is always labeled `REPLAY`.
+  Incident Dispatch has a complete replay; Retry Budget remains explicitly
+  unavailable until a live run produces a genuine failed-and-repaired arc.
 - **Live** provisions fresh Runloop Devboxes and is always labeled `LIVE`.
-- The included mission is deterministic and ends only after the selected patch
-  passes all six judge checks.
+- **Mission 01 / Incident Dispatch** judges six deterministic queue checks.
+- **Mission 02 / Retry Budget** judges seven deterministic allocation checks.
+- The decision band preserves original scores, changed-line counts, the first
+  deciding field, and elapsed time. Diff, judge, filtered trace, and a sanitized
+  versioned JSON report remain available as evidence.
 
 See [docs/forge-demo.md](docs/forge-demo.md) for the operator runbook and stage
 script.
