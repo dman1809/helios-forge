@@ -64,9 +64,9 @@ trace evidence throughout.
 
 ## Current proof
 
-The recorded replay is based on live Runloop run `7791fa62-d60`: both candidates
-initially scored 5/6, North won the deterministic tie break, the judge exposed the
-duplicate-ID failure, and one repair turn verified 6/6.
+The recorded replay is based on live Runloop run `7791fa62-d60`: North scored 5/6
+and South scored 4/6, North won on passed checks, the judge exposed the duplicate-ID
+failure, and one repair turn verified 6/6.
 
 Retry Budget was rehearsed live in Runloop run `5871cd36-e8c`. Both candidates
 passed 7/7 hidden checks on their first judged patches; North won the
