@@ -1,5 +1,6 @@
-import type { ForgeAction } from "./forge-state.ts";
+import type { ForgeMissionId } from "../shared/missions/mission-types.ts";
 import type { ForgeJudgeResult } from "../shared/forge-types.ts";
+import type { ForgeAction } from "./forge-state.ts";
 
 export interface ForgeReplayStep {
   delayMs: number;
@@ -29,7 +30,13 @@ const northFail: ForgeJudgeResult = {
 
 const southFail: ForgeJudgeResult = {
   ...northFail,
-  checks: northFail.checks.map((check) => ({ ...check })),
+  passed: 4,
+  checks: northFail.checks.map((check) =>
+    check.id === "stable-ties"
+      ? { ...check, passed: false, detail: "tie order changed" }
+      : { ...check },
+  ),
+  stdout: "FORGE_JUDGE_RESULT={passed:4,total:6}",
 };
 
 const verified: ForgeJudgeResult = {
@@ -39,6 +46,41 @@ const verified: ForgeJudgeResult = {
   checks: northFail.checks.map((check) => ({ ...check, passed: true, detail: "pass" })),
   stdout: "FORGE_JUDGE_RESULT={passed:6,total:6}",
 };
+
+const preRepairSource = `const severityWeight = {
+  critical: 3,
+  warning: 2,
+  info: 1,
+};
+
+export function rankIncidents(incidents, now) {
+  return incidents
+    .filter(({ expiresAt }) => expiresAt === null || expiresAt > now)
+    .sort(
+      (left, right) =>
+        severityWeight[right.severity] - severityWeight[left.severity] ||
+        left.createdAt - right.createdAt,
+    );
+}
+`;
+
+const preRepairDiff = `diff --git a/src/rank-incidents.mjs b/src/rank-incidents.mjs
+index fba8d23..5c92ed1 100644
+--- a/src/rank-incidents.mjs
++++ b/src/rank-incidents.mjs
+@@ -4,8 +4,10 @@ const severityWeight = {
+ };
+${" "}
+-export function rankIncidents(incidents, _now) {
+-  return incidents.sort(
++export function rankIncidents(incidents, now) {
++  return incidents
++    .filter(({ expiresAt }) => expiresAt === null || expiresAt > now)
++    .sort(
+     (left, right) =>
+       severityWeight[right.severity] - severityWeight[left.severity] ||
+       left.createdAt - right.createdAt,
+`;
 
 const verifiedSource = `const severityWeight = {
   critical: 3,
@@ -96,8 +138,17 @@ ${" "}
  }
 `;
 
-export const FORGE_REPLAY_STEPS: ForgeReplayStep[] = [
-  { delayMs: 0, action: { type: "run_started", runId: "7791fa62-d60", provenance: "replay", startedAt: 0 } },
+const incidentReplay: ForgeReplayStep[] = [
+  {
+    delayMs: 0,
+    action: {
+      type: "run_started",
+      runId: "7791fa62-d60",
+      provenance: "replay",
+      missionId: "incident-dispatch-v1",
+      startedAt: 0,
+    },
+  },
   {
     delayMs: 350,
     action: {
@@ -124,14 +175,79 @@ export const FORGE_REPLAY_STEPS: ForgeReplayStep[] = [
       },
     },
   },
-  { delayMs: 900, action: { type: "event_added", event: { id: "r1", at: 900, lane: "north", kind: "codex", label: "Patch ready", detail: "visible suite passed" } } },
-  { delayMs: 1100, action: { type: "event_added", event: { id: "r2", at: 1100, lane: "south", kind: "codex", label: "Patch ready", detail: "visible suite passed" } } },
-  { delayMs: 1300, action: { type: "judge_started" } },
-  { delayMs: 1550, action: { type: "judge_recorded", candidateId: "north", result: northFail } },
-  { delayMs: 1700, action: { type: "judge_recorded", candidateId: "south", result: southFail } },
-  { delayMs: 1850, action: { type: "candidate_selected", candidateId: "north" } },
   {
-    delayMs: 2100,
+    delayMs: 900,
+    action: {
+      type: "event_added",
+      event: {
+        id: "r1",
+        at: 900,
+        lane: "north",
+        kind: "codex",
+        label: "Patch ready",
+        detail: "visible suite passed",
+      },
+    },
+  },
+  {
+    delayMs: 1_100,
+    action: {
+      type: "event_added",
+      event: {
+        id: "r2",
+        at: 1_100,
+        lane: "south",
+        kind: "codex",
+        label: "Patch ready",
+        detail: "visible suite passed",
+      },
+    },
+  },
+  { delayMs: 1_300, action: { type: "judge_started" } },
+  {
+    delayMs: 1_450,
+    action: {
+      type: "artifact_recorded",
+      candidateId: "north",
+      artifact: {
+        diff: preRepairDiff,
+        source: preRepairSource,
+        testOutput: "# tests 2\n# pass 2\n# fail 0",
+      },
+    },
+  },
+  {
+    delayMs: 1_500,
+    action: {
+      type: "artifact_recorded",
+      candidateId: "south",
+      artifact: {
+        diff: `${preRepairDiff}\n+// candidate South added regression coverage`,
+        source: preRepairSource,
+        testOutput: "# tests 3\n# pass 3\n# fail 0",
+      },
+    },
+  },
+  { delayMs: 1_650, action: { type: "judge_recorded", candidateId: "north", result: northFail } },
+  { delayMs: 1_800, action: { type: "judge_recorded", candidateId: "south", result: southFail } },
+  { delayMs: 1_950, action: { type: "candidate_selected", candidateId: "north" } },
+  {
+    delayMs: 2_000,
+    action: {
+      type: "decision_recorded",
+      decision: {
+        selectedCandidateId: "north",
+        decidedBy: "passed-checks",
+        changedLines: { north: 4, south: 5 },
+        elapsedMs: 2_000,
+        decidedAt: 2_000,
+      },
+    },
+  },
+  { delayMs: 2_250, action: { type: "repair_started", candidateId: "north" } },
+  { delayMs: 2_800, action: { type: "repair_completed", candidateId: "north" } },
+  {
+    delayMs: 2_900,
     action: {
       type: "artifact_recorded",
       candidateId: "north",
@@ -142,8 +258,31 @@ export const FORGE_REPLAY_STEPS: ForgeReplayStep[] = [
       },
     },
   },
-  { delayMs: 2250, action: { type: "repair_started", candidateId: "north" } },
-  { delayMs: 2800, action: { type: "repair_completed", candidateId: "north" } },
-  { delayMs: 3050, action: { type: "verification_recorded", candidateId: "north", result: verified } },
-  { delayMs: 3200, action: { type: "event_added", event: { id: "r3", at: 3200, lane: "judge", kind: "verdict", label: "Verified", detail: "6 / 6 deterministic checks" } } },
+  { delayMs: 3_050, action: { type: "verification_recorded", candidateId: "north", result: verified } },
+  {
+    delayMs: 3_200,
+    action: {
+      type: "event_added",
+      event: {
+        id: "r3",
+        at: 3_200,
+        lane: "judge",
+        kind: "verdict",
+        label: "Verified",
+        detail: "6 / 6 deterministic checks",
+      },
+    },
+  },
 ];
+
+export const FORGE_REPLAYS: Partial<
+  Record<ForgeMissionId, ForgeReplayStep[]>
+> = {
+  "incident-dispatch-v1": incidentReplay,
+};
+
+export function getForgeReplay(
+  missionId: ForgeMissionId,
+): ForgeReplayStep[] | undefined {
+  return FORGE_REPLAYS[missionId];
+}

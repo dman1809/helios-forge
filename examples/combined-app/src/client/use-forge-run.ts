@@ -6,8 +6,9 @@ import type {
   ForgeProvenance,
   ForgeStartResponse,
 } from "../shared/forge-types.ts";
+import type { ForgeMissionId } from "../shared/missions/mission-types.ts";
 import { api } from "./hooks/api.ts";
-import { FORGE_REPLAY_STEPS } from "./forge-replay.ts";
+import { getForgeReplay } from "./forge-replay.ts";
 import { createInitialForgeState, forgeReducer } from "./forge-state.ts";
 
 interface TimelineEnvelope {
@@ -24,9 +25,13 @@ interface TimelineEnvelope {
 
 let eventSequence = 0;
 
+export type ForgeConnectionStatus = "connected" | "reconnecting" | "offline";
+
 export function useForgeRun() {
   const [state, dispatch] = useReducer(forgeReducer, createInitialForgeState("replay"));
   const [busy, setBusy] = useState(false);
+  const [connectionStatus, setConnectionStatus] =
+    useState<ForgeConnectionStatus>("reconnecting");
   const [turnCounts, setTurnCounts] = useState<Record<string, number>>({});
   const stateRef = useRef(state);
   const replayTimers = useRef<number[]>([]);
@@ -66,9 +71,11 @@ export function useForgeRun() {
 
     const connect = () => {
       if (stopped) return;
+      setConnectionStatus("reconnecting");
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
       socket.onopen = () => {
+        setConnectionStatus("connected");
         const run = stateRef.current;
         if (run.provenance !== "live") return;
         for (const candidate of Object.values(run.candidates)) {
@@ -123,7 +130,12 @@ export function useForgeRun() {
         }
       };
       socket.onclose = () => {
-        if (!stopped) reconnectTimer = window.setTimeout(connect, 900);
+        if (stopped) {
+          setConnectionStatus("offline");
+          return;
+        }
+        setConnectionStatus("reconnecting");
+        reconnectTimer = window.setTimeout(connect, 900);
       };
       socket.onerror = () => socket?.close();
     };
@@ -148,24 +160,43 @@ export function useForgeRun() {
       clearReplayTimers();
       setTurnCounts({});
       setBusy(false);
-      dispatch({ type: "reset", provenance });
+      dispatch({ type: "reset", provenance, missionId: state.missionId });
     },
-    [clearReplayTimers],
+    [clearReplayTimers, state.missionId],
+  );
+
+  const setMission = useCallback(
+    (missionId: ForgeMissionId) => {
+      clearReplayTimers();
+      setTurnCounts({});
+      setBusy(false);
+      dispatch({ type: "reset", provenance: state.provenance, missionId });
+    },
+    [clearReplayTimers, state.provenance],
   );
 
   const playReplay = useCallback(() => {
     clearReplayTimers();
+    const replay = getForgeReplay(state.missionId);
+    if (!replay) {
+      setBusy(false);
+      return;
+    }
     setBusy(true);
-    dispatch({ type: "reset", provenance: "replay" });
-    for (const step of FORGE_REPLAY_STEPS) {
+    dispatch({
+      type: "reset",
+      provenance: "replay",
+      missionId: state.missionId,
+    });
+    for (const step of replay) {
       replayTimers.current.push(
         window.setTimeout(() => {
           dispatch(step.action);
-          if (step === FORGE_REPLAY_STEPS.at(-1)) setBusy(false);
+          if (step === replay.at(-1)) setBusy(false);
         }, step.delayMs),
       );
     }
-  }, [clearReplayTimers]);
+  }, [clearReplayTimers, state.missionId]);
 
   const startLive = useCallback(async () => {
     setTurnCounts({});
@@ -266,14 +297,18 @@ export function useForgeRun() {
     setBusy(true);
     try {
       await api("/api/forge/shutdown", { runId: state.runId });
-      dispatch({ type: "reset", provenance: "live" });
+      dispatch({
+        type: "reset",
+        provenance: "live",
+        missionId: state.missionId,
+      });
       setTurnCounts({});
     } catch (error) {
       dispatch({ type: "run_failed", message: error instanceof Error ? error.message : String(error) });
     } finally {
       setBusy(false);
     }
-  }, [state.runId]);
+  }, [state.missionId, state.runId]);
 
   const readyToJudge = useMemo(() => {
     const north = state.candidates.north.ids?.agentId;
@@ -284,7 +319,10 @@ export function useForgeRun() {
   return {
     state,
     busy,
+    connectionStatus,
+    replayAvailable: Boolean(getForgeReplay(state.missionId)),
     readyToJudge,
+    setMission,
     switchMode,
     playReplay,
     startLive,
