@@ -1,10 +1,9 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import App from "./App.js";
-import "./App.css";
+import ForgeApp from "./ForgeApp.js";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
+    <ForgeApp />
   </StrictMode>,
 );

@@ -28,6 +28,12 @@ export interface CodexStartOptions {
   autoApprovePermissions?: boolean;
 }
 
+export interface DevboxCommandResult {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}
+
 // Model used when the start request doesn't specify one.
 const DEFAULT_CODEX_MODEL = "gpt-5.6-sol";
 
@@ -159,7 +165,7 @@ export class CodexConnectionManager {
         launch_commands: [WRITE_CODEX_AUTH_CMD, ...(opts.launchCommands ?? [])],
         lifecycle: {
           after_idle: {
-            idle_time_seconds: 60,
+            idle_time_seconds: 900,
             on_idle: "suspend",
           },
           resume_triggers: {
@@ -499,6 +505,22 @@ export class CodexConnectionManager {
   async interrupt(): Promise<void> {
     if (!this.connection) throw new HttpError(400, "Not connected");
     await this.connection.interrupt();
+  }
+
+  async executeCommand(command: string): Promise<DevboxCommandResult> {
+    if (!this.devbox) throw new HttpError(400, "No Devbox available");
+    const result = await this.devbox.cmd.exec(command);
+    const [stdout, stderr] = await Promise.all([result.stdout(), result.stderr()]);
+    return {
+      exitCode: result.exitCode ?? 1,
+      stdout,
+      stderr,
+    };
+  }
+
+  async readFile(path: string): Promise<string> {
+    if (!this.devbox) throw new HttpError(400, "No Devbox available");
+    return this.devbox.file.read({ file_path: path });
   }
 
   async shutdown(): Promise<void> {

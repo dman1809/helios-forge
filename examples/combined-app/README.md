@@ -2,6 +2,22 @@
 
 > **Alpha — subject to change.** This example uses an SDK in early development. APIs and behavior may change without notice between versions.
 
+## Helios Forge Mission Control
+
+This branch turns the combined-agent example into a focused hackathon demo: two
+Codex candidates work in isolated Runloop Devboxes, an external deterministic
+judge compares their patches, and one evidence-only repair turn closes the
+remaining failure. The first screen is the operating console, not a landing
+page.
+
+- **Replay** replays a recorded real run and is always labeled `REPLAY`.
+- **Live** provisions fresh Runloop Devboxes and is always labeled `LIVE`.
+- The included mission is deterministic and ends only after the selected patch
+  passes all six judge checks.
+
+See [docs/forge-demo.md](docs/forge-demo.md) for the operator runbook and stage
+script.
+
 A full-stack demo that supports ACP, Claude Code, and Codex agents running in Runloop devboxes. An Express backend manages agent connections (one per protocol) and fans out SDK timeline events to a React frontend over a single WebSocket. Multiple agents can run concurrently.
 
 ## Prerequisites
@@ -29,6 +45,8 @@ Add your keys to `.env`:
 RUNLOOP_API_KEY=your_runloop_api_key
 ANTHROPIC_API_KEY=your_anthropic_api_key
 OPENAI_API_KEY=your_openai_api_key
+# Optional: full Codex auth.json content; takes precedence over OPENAI_API_KEY
+CODEX_AUTH_JSON=your_codex_auth_json
 ```
 
 Codex agents authenticate via a `~/.codex/auth.json` written into the devbox at

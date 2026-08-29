@@ -8,6 +8,8 @@ import { registerDebugRoutes } from "./routes/debug.ts";
 import { registerLifecycleRoutes } from "./routes/lifecycle.ts";
 import { registerPromptRoutes } from "./routes/prompt.ts";
 import { WsBroadcaster } from "./ws.ts";
+import { ForgeService } from "./forge-service.ts";
+import { registerForgeRoutes } from "./routes/forge.ts";
 
 const app = express();
 app.use(express.json());
@@ -15,6 +17,7 @@ app.use(express.json());
 const server = createServer(app);
 const ws = new WsBroadcaster(server);
 const registry = new AgentRegistry();
+const forge = new ForgeService(registry, ws);
 
 registerLifecycleRoutes(app, registry, ws);
 registerPromptRoutes(app, registry, ws);
@@ -22,6 +25,7 @@ registerClaudeRoutes(app, registry);
 registerACPRoutes(app, registry);
 registerCodexRoutes(app, registry);
 registerDebugRoutes(app, registry);
+registerForgeRoutes(app, forge);
 
 const PORT = process.env.PORT ?? 3003;
 server.listen(PORT, () => {
