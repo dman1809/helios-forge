@@ -238,6 +238,10 @@ const incidentReplay: ForgeReplayStep[] = [
       decision: {
         selectedCandidateId: "north",
         decidedBy: "passed-checks",
+        scores: {
+          north: { passed: 5, total: 6, exitCode: 1 },
+          south: { passed: 4, total: 6, exitCode: 1 },
+        },
         changedLines: { north: 4, south: 5 },
         elapsedMs: 2_000,
         decidedAt: 2_000,

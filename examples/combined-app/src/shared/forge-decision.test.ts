@@ -28,6 +28,10 @@ describe("Forge decision record", () => {
     );
     expect(byScore.selectedCandidateId).toBe("north");
     expect(byScore.decidedBy).toBe("passed-checks");
+    expect(byScore.scores).toEqual({
+      north: { passed: 6, total: 7, exitCode: 1 },
+      south: { passed: 5, total: 7, exitCode: 1 },
+    });
     expect(byScore.elapsedMs).toBe(350);
 
     const byExit = computeForgeDecision(

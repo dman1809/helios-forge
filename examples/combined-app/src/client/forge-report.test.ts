@@ -15,6 +15,10 @@ describe("Forge evidence report", () => {
       decision: {
         selectedCandidateId: "south" as const,
         decidedBy: "changed-lines" as const,
+        scores: {
+          north: { passed: 6, total: 7, exitCode: 1 },
+          south: { passed: 6, total: 7, exitCode: 1 },
+        },
         changedLines: { north: 8, south: 4 },
         elapsedMs: 820,
         decidedAt: 1_820,

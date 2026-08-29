@@ -50,6 +50,18 @@ export function computeForgeDecision(
   return {
     selectedCandidateId,
     decidedBy,
+    scores: {
+      north: {
+        passed: results.north.passed,
+        total: results.north.total,
+        exitCode: results.north.exitCode,
+      },
+      south: {
+        passed: results.south.passed,
+        total: results.south.total,
+        exitCode: results.south.exitCode,
+      },
+    },
     changedLines,
     elapsedMs: Math.max(0, decidedAt - startedAt),
     decidedAt,

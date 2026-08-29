@@ -56,6 +56,10 @@ export interface ForgeArtifact {
 export interface ForgeDecision {
   selectedCandidateId: ForgeCandidateId;
   decidedBy: "passed-checks" | "exit-code" | "changed-lines" | "candidate-id";
+  scores: Record<
+    ForgeCandidateId,
+    { passed: number; total: number; exitCode: number }
+  >;
   changedLines: Record<ForgeCandidateId, number>;
   elapsedMs: number;
   decidedAt: number;

@@ -54,6 +54,10 @@ describe("Forge run state", () => {
         decision: {
           selectedCandidateId: "north" as const,
           decidedBy: "passed-checks" as const,
+          scores: {
+            north: { passed: 4, total: 5, exitCode: 1 },
+            south: { passed: 3, total: 5, exitCode: 1 },
+          },
           changedLines: { north: 3, south: 5 },
           elapsedMs: 50,
           decidedAt: 150,
