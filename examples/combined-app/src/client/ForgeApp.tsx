@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import {
   Activity,
+  Bot,
   Check,
   Circle,
   Download,
@@ -34,6 +35,7 @@ import "./ForgeApp.css";
 
 type EvidenceTab = "diff" | "judge" | "trace";
 type TraceFilter = "all" | ForgeCandidateId | "judge";
+type WorkspaceTarget = "agents" | "devboxes" | "judge";
 
 const PHASE_LABELS: Record<ForgePhase, string> = {
   idle: "Ready",
@@ -238,6 +240,17 @@ export default function ForgeApp() {
         ? 1
         : 0;
 
+  const focusWorkspace = (target: WorkspaceTarget) => {
+    const targetId = target === "judge" ? "evidence-inspector" : "candidate-lanes";
+    if (target === "judge") setTab("judge");
+    document.getElementById(targetId)?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
+
+  const candidateCount = Object.keys(state.candidates).length;
+
   return (
     <div className="forge-shell">
       <header className="topbar">
@@ -334,36 +347,65 @@ export default function ForgeApp() {
             <h1>{mission.title}</h1>
             <p>{mission.brief}</p>
           </div>
-          <div className="mission-meta">
-            <span>2 CODEX AGENTS</span>
-            <span>2 RUNLOOP DEVBOXES</span>
-            <span>1 EXTERNAL JUDGE</span>
-          </div>
+          <nav className="mission-nav" aria-label="Mission workspace">
+            <button
+              type="button"
+              title="Show agent candidates"
+              onClick={() => focusWorkspace("agents")}
+            >
+              <Bot size={14} />
+              <span>Agents</span>
+              <strong>{candidateCount}</strong>
+            </button>
+            <button
+              type="button"
+              title="Show Runloop Devboxes"
+              onClick={() => focusWorkspace("devboxes")}
+            >
+              <Server size={14} />
+              <span>Devboxes</span>
+              <strong>{candidateCount}</strong>
+            </button>
+            <button
+              type="button"
+              title="Open external judge evidence"
+              onClick={() => focusWorkspace("judge")}
+            >
+              <Scale size={14} />
+              <span>Judge</span>
+              <strong>1</strong>
+            </button>
+          </nav>
         </section>
 
         <section className="verdict-rail" aria-label="Verification pipeline">
           <div className="rail-lead"><GitCompareArrows size={17} /><span>PATCH PIPELINE</span></div>
-          {VERDICT_STEPS.map((step, index) => {
-            const active = verdictRank >= index + 1;
-            const current = state.verdict === step.id;
-            return (
-              <div
-                className={`rail-step ${active ? "active" : ""} ${current ? "current" : ""}`}
-                key={step.id}
-              >
-                <span>{index + 1}</span>{step.label}
-              </div>
-            );
-          })}
+          <div className="rail-steps">
+            {VERDICT_STEPS.map((step, index) => {
+              const active = verdictRank >= index + 1;
+              const current = state.verdict === step.id;
+              return (
+                <div
+                  className={`rail-step ${active ? "active" : ""} ${current ? "current" : ""}`}
+                  key={step.id}
+                >
+                  <span>{index + 1}</span>
+                  <strong>{step.label}</strong>
+                </div>
+              );
+            })}
+          </div>
           <div className="rail-run"><span>RUN ID</span><ShortId value={state.runId} /></div>
         </section>
 
         {state.decision && (
           <section className="decision-row" aria-label="Judge decision">
             <div className="decision-primary">
-              <Scale size={15} />
-              <span>SELECTED</span>
-              <strong>{state.decision.selectedCandidateId === "north" ? "North" : "South"}</strong>
+              <span>SELECTED CANDIDATE</span>
+              <span className="decision-winner">
+                <Scale size={14} />
+                <strong>{state.decision.selectedCandidateId === "north" ? "North" : "South"}</strong>
+              </span>
             </div>
             <div><span>SCORE N</span><strong>{state.decision.scores.north.passed}/{state.decision.scores.north.total}</strong></div>
             <div><span>SCORE S</span><strong>{state.decision.scores.south.passed}/{state.decision.scores.south.total}</strong></div>
@@ -380,7 +422,7 @@ export default function ForgeApp() {
         )}
 
         <section className="control-grid">
-          <div className="candidate-grid">
+          <div className="candidate-grid" id="candidate-lanes">
             <CandidateLane
               candidate={state.candidates.north}
               selected={selected === "north"}
@@ -391,7 +433,7 @@ export default function ForgeApp() {
             />
           </div>
 
-          <aside className="evidence-panel">
+          <aside className="evidence-panel" id="evidence-inspector">
             <header className="evidence-header">
               <div><span>EVIDENCE</span><h2>Inspector</h2></div>
               <div className="evidence-actions">
