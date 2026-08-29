@@ -8,6 +8,7 @@ import {
 import { HttpError } from "./http-errors.ts";
 import type { WsBroadcaster } from "./ws.ts";
 import { FORGE_MISSION, buildSeedLaunchCommands } from "../shared/forge-mission.ts";
+import { computeForgeDecision } from "../shared/forge-decision.ts";
 import type {
   ForgeAgentIds,
   ForgeArtifact,
@@ -25,6 +26,7 @@ interface LiveCandidate {
 
 interface LiveRun {
   id: string;
+  startedAt: number;
   candidates: Record<ForgeCandidateId, LiveCandidate>;
   selectedCandidateId: ForgeCandidateId | null;
 }
@@ -74,25 +76,7 @@ export function selectCandidate(
   results: Record<ForgeCandidateId, ForgeJudgeResult>,
   artifacts: Record<ForgeCandidateId, ForgeArtifact>,
 ): ForgeCandidateId {
-  return (["north", "south"] as ForgeCandidateId[]).sort((left, right) => {
-    const scoreDifference = results[right].passed - results[left].passed;
-    if (scoreDifference !== 0) return scoreDifference;
-    const exitDifference = results[left].exitCode - results[right].exitCode;
-    if (exitDifference !== 0) return exitDifference;
-    const churnDifference = changedLineCount(artifacts[left].diff) - changedLineCount(artifacts[right].diff);
-    if (churnDifference !== 0) return churnDifference;
-    return left.localeCompare(right);
-  })[0];
-}
-
-function changedLineCount(diff: string): number {
-  return diff
-    .split(/\r?\n/)
-    .filter(
-      (line) =>
-        (line.startsWith("+") && !line.startsWith("+++")) ||
-        (line.startsWith("-") && !line.startsWith("---")),
-    ).length;
+  return computeForgeDecision(results, artifacts, 0, 0).selectedCandidateId;
 }
 
 export function buildRepairPrompt(
@@ -166,7 +150,12 @@ export class ForgeService {
       });
     }
 
-    const run: LiveRun = { id: runId, candidates, selectedCandidateId: null };
+    const run: LiveRun = {
+      id: runId,
+      startedAt: Date.now(),
+      candidates,
+      selectedCandidateId: null,
+    };
     this.runs.set(runId, run);
 
     await Promise.all(
@@ -204,9 +193,14 @@ export class ForgeService {
     const artifacts = Object.fromEntries(
       entries.map(([candidateId, , artifact]) => [candidateId, artifact]),
     ) as Record<ForgeCandidateId, ForgeArtifact>;
-    const selectedCandidateId = selectCandidate(results, artifacts);
-    run.selectedCandidateId = selectedCandidateId;
-    return { selectedCandidateId, results, artifacts };
+    const decision = computeForgeDecision(results, artifacts, run.startedAt, Date.now());
+    run.selectedCandidateId = decision.selectedCandidateId;
+    return {
+      selectedCandidateId: decision.selectedCandidateId,
+      decision,
+      results,
+      artifacts,
+    };
   }
 
   async repair(runId: string): Promise<{ candidateId: ForgeCandidateId; ok: true }> {

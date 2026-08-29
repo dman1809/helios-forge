@@ -1,9 +1,12 @@
+import type { ForgeMissionId } from "./missions/mission-types.ts";
+
 export type ForgeProvenance = "live" | "replay";
 export type ForgePhase =
   | "idle"
   | "provisioning"
   | "competing"
   | "judging"
+  | "selected"
   | "repairing"
   | "verified"
   | "error";
@@ -50,6 +53,14 @@ export interface ForgeArtifact {
   testOutput: string;
 }
 
+export interface ForgeDecision {
+  selectedCandidateId: ForgeCandidateId;
+  decidedBy: "passed-checks" | "exit-code" | "changed-lines" | "candidate-id";
+  changedLines: Record<ForgeCandidateId, number>;
+  elapsedMs: number;
+  decidedAt: number;
+}
+
 export interface ForgeCandidateState {
   id: ForgeCandidateId;
   label: string;
@@ -71,11 +82,13 @@ export interface ForgeEvent {
 
 export interface ForgeRunState {
   runId: string | null;
+  missionId: ForgeMissionId;
   provenance: ForgeProvenance;
   phase: ForgePhase;
   verdict: ForgeVerdict;
   startedAt: number | null;
   selectedCandidateId: ForgeCandidateId | null;
+  decision: ForgeDecision | null;
   candidates: Record<ForgeCandidateId, ForgeCandidateState>;
   events: ForgeEvent[];
   error: string | null;
@@ -88,6 +101,7 @@ export interface ForgeStartResponse {
 
 export interface ForgeJudgeResponse {
   selectedCandidateId: ForgeCandidateId;
+  decision: ForgeDecision;
   results: Record<ForgeCandidateId, ForgeJudgeResult>;
   artifacts: Record<ForgeCandidateId, ForgeArtifact>;
 }

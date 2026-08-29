@@ -33,6 +33,7 @@ const PHASE_LABELS: Record<ForgePhase, string> = {
   provisioning: "Provisioning",
   competing: "Agents working",
   judging: "Judging",
+  selected: "Winner selected",
   repairing: "Repairing",
   verified: "Verified",
   error: "Held",

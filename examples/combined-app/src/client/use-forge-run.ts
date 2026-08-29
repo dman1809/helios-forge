@@ -213,6 +213,7 @@ export function useForgeRun() {
         dispatch({ type: "artifact_recorded", candidateId, artifact: response.artifacts[candidateId] });
       }
       dispatch({ type: "candidate_selected", candidateId: response.selectedCandidateId });
+      dispatch({ type: "decision_recorded", decision: response.decision });
       addEvent({
         lane: "judge",
         kind: "verdict",

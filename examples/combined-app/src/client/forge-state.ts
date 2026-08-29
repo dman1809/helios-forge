@@ -1,22 +1,32 @@
+import { getForgeMission } from "../shared/forge-missions.ts";
 import type {
   ForgeAgentIds,
   ForgeArtifact,
   ForgeCandidateId,
+  ForgeDecision,
   ForgeEvent,
   ForgeJudgeResult,
   ForgeProvenance,
   ForgeRunState,
 } from "../shared/forge-types.ts";
+import type { ForgeMissionId } from "../shared/missions/mission-types.ts";
 
 export type ForgeAction =
-  | { type: "reset"; provenance: ForgeProvenance }
-  | { type: "run_started"; runId: string; provenance: ForgeProvenance; startedAt: number }
+  | { type: "reset"; provenance: ForgeProvenance; missionId?: ForgeMissionId }
+  | {
+      type: "run_started";
+      runId: string;
+      provenance: ForgeProvenance;
+      missionId?: ForgeMissionId;
+      startedAt: number;
+    }
   | { type: "run_identified"; runId: string }
   | { type: "candidate_provisioned"; candidateId: ForgeCandidateId; ids: ForgeAgentIds }
   | { type: "candidate_running"; candidateId: ForgeCandidateId }
   | { type: "judge_started" }
   | { type: "judge_recorded"; candidateId: ForgeCandidateId; result: ForgeJudgeResult }
   | { type: "candidate_selected"; candidateId: ForgeCandidateId }
+  | { type: "decision_recorded"; decision: ForgeDecision }
   | { type: "repair_started"; candidateId: ForgeCandidateId }
   | { type: "repair_completed"; candidateId: ForgeCandidateId }
   | { type: "verification_recorded"; candidateId: ForgeCandidateId; result: ForgeJudgeResult }
@@ -24,19 +34,25 @@ export type ForgeAction =
   | { type: "event_added"; event: ForgeEvent }
   | { type: "run_failed"; message: string };
 
-export function createInitialForgeState(provenance: ForgeProvenance): ForgeRunState {
+export function createInitialForgeState(
+  provenance: ForgeProvenance,
+  missionId: ForgeMissionId = "incident-dispatch-v1",
+): ForgeRunState {
+  const mission = getForgeMission(missionId);
   return {
     runId: null,
+    missionId,
     provenance,
     phase: "idle",
     verdict: "ready",
     startedAt: null,
     selectedCandidateId: null,
+    decision: null,
     candidates: {
       north: {
         id: "north",
-        label: "North",
-        strategy: "Minimal patch",
+        label: mission.candidates[0].label,
+        strategy: mission.candidates[0].strategy,
         status: "queued",
         ids: null,
         judge: null,
@@ -44,8 +60,8 @@ export function createInitialForgeState(provenance: ForgeProvenance): ForgeRunSt
       },
       south: {
         id: "south",
-        label: "South",
-        strategy: "Contract-first patch",
+        label: mission.candidates[1].label,
+        strategy: mission.candidates[1].strategy,
         status: "queued",
         ids: null,
         judge: null,
@@ -74,9 +90,12 @@ function updateCandidate(
 export function forgeReducer(state: ForgeRunState, action: ForgeAction): ForgeRunState {
   switch (action.type) {
     case "reset":
-      return createInitialForgeState(action.provenance);
+      return createInitialForgeState(action.provenance, action.missionId ?? state.missionId);
     case "run_started": {
-      const next = createInitialForgeState(action.provenance);
+      const next = createInitialForgeState(
+        action.provenance,
+        action.missionId ?? state.missionId,
+      );
       return {
         ...next,
         runId: action.runId,
@@ -123,9 +142,15 @@ export function forgeReducer(state: ForgeRunState, action: ForgeAction): ForgeRu
         ...next,
         selectedCandidateId: action.candidateId,
         verdict: passed ? "verified" : "failed",
-        phase: passed ? "verified" : next.phase,
+        phase: passed ? "verified" : "selected",
       };
     }
+    case "decision_recorded":
+      return {
+        ...state,
+        decision: action.decision,
+        selectedCandidateId: action.decision.selectedCandidateId,
+      };
     case "repair_started":
       return {
         ...updateCandidate(state, action.candidateId, { status: "repairing" }),

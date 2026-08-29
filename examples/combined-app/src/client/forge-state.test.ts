@@ -27,10 +27,45 @@ const passingJudge: ForgeJudgeResult = {
 };
 
 function reduce(actions: ForgeAction[]) {
-  return actions.reduce(forgeReducer, createInitialForgeState("replay"));
+  return actions.reduce(
+    forgeReducer,
+    createInitialForgeState("replay", "incident-dispatch-v1"),
+  );
 }
 
 describe("Forge run state", () => {
+  test("keeps mission identity and records the authoritative selected phase", () => {
+    const initial = createInitialForgeState("replay", "retry-budget-v1");
+    expect(initial.missionId).toBe("retry-budget-v1");
+
+    const selected = [
+      {
+        type: "run_started" as const,
+        runId: "run-02",
+        provenance: "replay" as const,
+        missionId: "retry-budget-v1" as const,
+        startedAt: 100,
+      },
+      { type: "judge_started" as const },
+      { type: "judge_recorded" as const, candidateId: "north" as const, result: failingJudge },
+      { type: "candidate_selected" as const, candidateId: "north" as const },
+      {
+        type: "decision_recorded" as const,
+        decision: {
+          selectedCandidateId: "north" as const,
+          decidedBy: "passed-checks" as const,
+          changedLines: { north: 3, south: 5 },
+          elapsedMs: 50,
+          decidedAt: 150,
+        },
+      },
+    ].reduce(forgeReducer, initial);
+
+    expect(selected.missionId).toBe("retry-budget-v1");
+    expect(selected.phase).toBe("selected");
+    expect(selected.decision?.decidedBy).toBe("passed-checks");
+  });
+
   test("moves through the complete failed, repaired, verified path", () => {
     const state = reduce([
       { type: "run_started", runId: "run-1", provenance: "replay", startedAt: 100 },
