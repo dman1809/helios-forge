@@ -6,6 +6,7 @@ import {
   selectCandidate,
 } from "./forge-service.ts";
 import type { ForgeJudgeResult } from "../shared/forge-types.ts";
+import { getForgeMission } from "../shared/forge-missions.ts";
 
 const artifacts = {
   north: { diff: "@@\n-old\n+new\n+test", source: "north", testOutput: "pass" },
@@ -33,6 +34,18 @@ describe("Forge service pure contracts", () => {
     expect(north.model).toBe("gpt-5.6-sol");
     expect(north.launchCommands).toEqual(south.launchCommands);
     expect(north.launchCommands?.length).toBeGreaterThan(5);
+  });
+
+  test("builds candidate and repair contracts from the selected mission", () => {
+    const mission = getForgeMission("retry-budget-v1");
+    const options = buildCandidateStartOptions("north", mission);
+    const prompt = buildRepairPrompt("north", result(6, 7, 1), mission);
+
+    expect(options.workingDir).toBe(mission.targetRoot);
+    expect(options.launchCommands?.at(-1)).toContain(mission.testCommand);
+    expect(prompt).toContain(mission.targetRoot);
+    expect(prompt).toContain(mission.judgeRoot);
+    expect(prompt).not.toContain("rank-incidents");
   });
 
   test("parses the final marked judge result and preserves command evidence", () => {

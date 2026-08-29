@@ -7,8 +7,16 @@ import {
 } from "./codex-manager.ts";
 import { HttpError } from "./http-errors.ts";
 import type { WsBroadcaster } from "./ws.ts";
-import { FORGE_MISSION, buildSeedLaunchCommands } from "../shared/forge-mission.ts";
 import { computeForgeDecision } from "../shared/forge-decision.ts";
+import {
+  FORGE_MISSION,
+  buildSeedLaunchCommands,
+  getForgeMission,
+} from "../shared/forge-missions.ts";
+import type {
+  ForgeMission,
+  ForgeMissionId,
+} from "../shared/missions/mission-types.ts";
 import type {
   ForgeAgentIds,
   ForgeArtifact,
@@ -27,18 +35,22 @@ interface LiveCandidate {
 interface LiveRun {
   id: string;
   startedAt: number;
+  mission: ForgeMission;
   candidates: Record<ForgeCandidateId, LiveCandidate>;
   selectedCandidateId: ForgeCandidateId | null;
 }
 
 const JUDGE_MARKER = "FORGE_JUDGE_RESULT=";
 
-export function buildCandidateStartOptions(_candidateId: ForgeCandidateId): CodexStartOptions {
+export function buildCandidateStartOptions(
+  _candidateId: ForgeCandidateId,
+  mission: ForgeMission = FORGE_MISSION,
+): CodexStartOptions {
   return {
     blueprintName: "axon-agents",
     model: "gpt-5.6-sol",
-    workingDir: FORGE_MISSION.targetRoot,
-    launchCommands: buildSeedLaunchCommands(),
+    workingDir: mission.targetRoot,
+    launchCommands: buildSeedLaunchCommands(mission),
     autoApprovePermissions: true,
     systemPrompt:
       "You are a named Helios Forge candidate. Work only on the supplied mission, preserve evidence, and never inspect the external judge directory.",
@@ -82,13 +94,14 @@ export function selectCandidate(
 export function buildRepairPrompt(
   candidateId: ForgeCandidateId,
   result: ForgeJudgeResult,
+  mission: ForgeMission = FORGE_MISSION,
 ): string {
   const label = candidateId === "north" ? "North" : "South";
   const failures = result.checks
     .filter((check) => !check.passed)
     .map((check) => `- ${check.label}: ${check.detail}`)
     .join("\n");
-  return `Candidate ${label}, the external deterministic judge selected your patch but found these remaining regressions:\n${failures}\n\nRepair only those failures in ${FORGE_MISSION.targetRoot}. Preserve all passing behavior, run the visible tests, and leave the repair uncommitted. Do not inspect ${FORGE_MISSION.judgeRoot}. Report the changed file and visible test result.`;
+  return `Candidate ${label}, the external deterministic judge selected your patch for ${mission.title} but found these remaining regressions:\n${failures}\n\nRepair only those failures in ${mission.targetRoot}. Preserve all passing behavior, run the visible tests, and leave the repair uncommitted. Do not inspect ${mission.judgeRoot}. Report the changed file and visible test result.`;
 }
 
 export class ForgeService {
@@ -99,7 +112,16 @@ export class ForgeService {
     private ws: WsBroadcaster,
   ) {}
 
-  async start(): Promise<ForgeStartResponse> {
+  async start(
+    missionId: ForgeMissionId = "incident-dispatch-v1",
+  ): Promise<ForgeStartResponse> {
+    let mission: ForgeMission;
+    try {
+      mission = getForgeMission(missionId);
+    } catch {
+      throw new HttpError(400, `Unknown Forge mission: ${missionId}`);
+    }
+    const startedAt = Date.now();
     const runId = randomUUID().slice(0, 12);
     const candidateIds: ForgeCandidateId[] = ["north", "south"];
     const pending = candidateIds.map((candidateId) => {
@@ -110,7 +132,7 @@ export class ForgeService {
 
     const starts = await Promise.allSettled(
       pending.map(async ({ candidateId, agentId, manager }) => {
-        const started = await manager.start(buildCandidateStartOptions(candidateId));
+        const started = await manager.start(buildCandidateStartOptions(candidateId, mission));
         return {
           id: candidateId,
           manager,
@@ -138,11 +160,11 @@ export class ForgeService {
     ) as Record<ForgeCandidateId, LiveCandidate>;
 
     for (const candidate of Object.values(candidates)) {
-      const mission = FORGE_MISSION.candidates.find((item) => item.id === candidate.id)!;
+      const candidateSpec = mission.candidates.find((item) => item.id === candidate.id)!;
       this.registry.add({
         id: candidate.ids.agentId,
         agentType: "codex",
-        name: `Forge ${mission.label}`,
+        name: `Forge ${candidateSpec.label}`,
         axonId: candidate.ids.axonId,
         devboxId: candidate.ids.devboxId,
         createdAt: Date.now(),
@@ -152,7 +174,8 @@ export class ForgeService {
 
     const run: LiveRun = {
       id: runId,
-      startedAt: Date.now(),
+      startedAt,
+      mission,
       candidates,
       selectedCandidateId: null,
     };
@@ -160,7 +183,7 @@ export class ForgeService {
 
     await Promise.all(
       Object.values(candidates).map((candidate) => {
-        const prompt = FORGE_MISSION.candidates.find((item) => item.id === candidate.id)!.prompt;
+        const prompt = mission.candidates.find((item) => item.id === candidate.id)!.prompt;
         return candidate.manager.send(prompt);
       }),
     );
@@ -180,8 +203,8 @@ export class ForgeService {
       (["north", "south"] as ForgeCandidateId[]).map(async (candidateId) => {
         const candidate = run.candidates[candidateId];
         const [judgeExecution, artifact] = await Promise.all([
-          candidate.manager.executeCommand(FORGE_MISSION.judgeCommand),
-          this.captureArtifact(candidate.manager),
+          candidate.manager.executeCommand(run.mission.judgeCommand),
+          this.captureArtifact(candidate.manager, run.mission),
         ]);
         return [candidateId, parseJudgeOutput(judgeExecution), artifact] as const;
       }),
@@ -207,9 +230,11 @@ export class ForgeService {
     const run = this.requireRun(runId);
     if (!run.selectedCandidateId) throw new HttpError(409, "Judge the candidates before repair");
     const selected = run.candidates[run.selectedCandidateId];
-    const execution = await selected.manager.executeCommand(FORGE_MISSION.judgeCommand);
+    const execution = await selected.manager.executeCommand(run.mission.judgeCommand);
     const result = parseJudgeOutput(execution);
-    await selected.manager.send(buildRepairPrompt(run.selectedCandidateId, result));
+    await selected.manager.sendAndWaitForTurnCompletion(
+      buildRepairPrompt(run.selectedCandidateId, result, run.mission),
+    );
     return { candidateId: run.selectedCandidateId, ok: true };
   }
 
@@ -222,8 +247,8 @@ export class ForgeService {
     if (!run.selectedCandidateId) throw new HttpError(409, "No selected candidate");
     const selected = run.candidates[run.selectedCandidateId];
     const [execution, artifact] = await Promise.all([
-      selected.manager.executeCommand(FORGE_MISSION.judgeCommand),
-      this.captureArtifact(selected.manager),
+      selected.manager.executeCommand(run.mission.judgeCommand),
+      this.captureArtifact(selected.manager, run.mission),
     ]);
     return {
       candidateId: run.selectedCandidateId,
@@ -233,7 +258,8 @@ export class ForgeService {
   }
 
   async artifacts(runId: string, candidateId: ForgeCandidateId): Promise<ForgeArtifact> {
-    return this.captureArtifact(this.requireRun(runId).candidates[candidateId].manager);
+    const run = this.requireRun(runId);
+    return this.captureArtifact(run.candidates[candidateId].manager, run.mission);
   }
 
   async shutdown(runId: string): Promise<void> {
@@ -252,13 +278,19 @@ export class ForgeService {
     return run;
   }
 
-  private async captureArtifact(manager: CodexConnectionManager): Promise<ForgeArtifact> {
+  private async captureArtifact(
+    manager: CodexConnectionManager,
+    mission: ForgeMission,
+  ): Promise<ForgeArtifact> {
+    const artifactArgs = mission.artifactPaths
+      .map((path) => `'${path.replaceAll("'", "'\\''")}'`)
+      .join(" ");
     const [diff, source, tests] = await Promise.all([
       manager.executeCommand(
-        `cd '${FORGE_MISSION.targetRoot}' && git diff --no-ext-diff -- src/rank-incidents.mjs test/rank-incidents.test.mjs`,
+        `cd '${mission.targetRoot}' && git diff --no-ext-diff -- ${artifactArgs}`,
       ),
-      manager.readFile(`${FORGE_MISSION.targetRoot}/src/rank-incidents.mjs`),
-      manager.executeCommand(`cd '${FORGE_MISSION.targetRoot}' && node --test`),
+      manager.readFile(`${mission.targetRoot}/${mission.sourcePath}`),
+      manager.executeCommand(`cd '${mission.targetRoot}' && ${mission.testCommand}`),
     ]);
     return {
       diff: diff.stdout || diff.stderr,

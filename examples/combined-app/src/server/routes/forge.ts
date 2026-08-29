@@ -1,13 +1,18 @@
 import type { Express } from "express";
 import type { ForgeCandidateId } from "../../shared/forge-types.ts";
+import type { ForgeMissionId } from "../../shared/missions/mission-types.ts";
 import type { ForgeService } from "../forge-service.ts";
 import { asyncHandler } from "./helpers.ts";
 
 export function registerForgeRoutes(app: Express, forge: ForgeService): void {
   app.post(
     "/api/forge/start",
-    asyncHandler(async (_req, res) => {
-      res.json(await forge.start());
+    asyncHandler(async (req, res) => {
+      res.json(
+        await forge.start(
+          String(req.body.missionId ?? "incident-dispatch-v1") as ForgeMissionId,
+        ),
+      );
     }),
   );
 

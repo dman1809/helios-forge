@@ -10,6 +10,7 @@ import {
 } from "@runloop/remote-agents-sdk/codex";
 import type { AxonEventView } from "@runloop/remote-agents-sdk/shared";
 import { HttpError } from "./http-errors.ts";
+import { TurnCompletionWaiter } from "./turn-completion-waiter.ts";
 import type { WsBroadcaster, WsEvent, BaseWsEvent } from "./ws.ts";
 
 export type UserInputRequest = Extract<ApprovalRequest, { method: "item/tool/requestUserInput" }>;
@@ -107,6 +108,7 @@ export class CodexConnectionManager {
     string,
     { request: UserInputRequest; resolve: (answers: UserInputAnswers) => void }
   >();
+  private turnCompletionWaiter = new TurnCompletionWaiter();
 
   constructor(
     private ws: WsBroadcaster,
@@ -220,7 +222,10 @@ export class CodexConnectionManager {
         capabilities: { experimentalApi: true, requestAttestation: false },
       },
       ...(opts?.afterSequence != null ? { afterSequence: opts.afterSequence, replay: false } : {}),
-      ...(opts?.onDisconnect ? { onDisconnect: opts.onDisconnect } : {}),
+      onDisconnect: async () => {
+        this.turnCompletionWaiter.rejectPending(new Error("Codex disconnected"));
+        await opts?.onDisconnect?.();
+      },
       // A human may need to answer an approval or a requestUserInput question
       // in the UI, so keep the long window in every mode.
       requestTimeoutMs: APPROVAL_TIMEOUT_MS,
@@ -257,6 +262,9 @@ export class CodexConnectionManager {
 
     conn.onTimelineEvent((ev) => {
       this.ws.broadcast(this.tag({ type: "timeline_event", event: ev }));
+      if (ev.kind === "codex_protocol" && ev.eventType === "turn/completed") {
+        this.turnCompletionWaiter.completeNext();
+      }
     });
 
     // Without handlers the SDK auto-approves (accept commands/file changes,
@@ -350,6 +358,13 @@ export class CodexConnectionManager {
       console.log(`[codex] turn options: ${JSON.stringify(options)}`);
     }
     await this.connection.send(prompt, options);
+  }
+
+  sendAndWaitForTurnCompletion(
+    prompt: string | InputItem[],
+    timeoutMs = 300_000,
+  ): Promise<void> {
+    return this.turnCompletionWaiter.wait(() => this.send(prompt), timeoutMs);
   }
 
   /**
@@ -524,6 +539,7 @@ export class CodexConnectionManager {
   }
 
   async shutdown(): Promise<void> {
+    this.turnCompletionWaiter.rejectPending(new Error("Codex shut down"));
     if (this.connection) {
       await this.connection.disconnect();
     }

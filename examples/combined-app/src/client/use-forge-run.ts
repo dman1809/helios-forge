@@ -112,22 +112,10 @@ export function useForgeRun() {
           const completedAgentId = envelope.agentId;
           addEvent({ lane, kind: "codex", label: "Patch turn completed" });
           setTurnCounts((current) => {
-            const next = {
+            return {
               ...current,
               [completedAgentId]: (current[completedAgentId] ?? 0) + 1,
             };
-            const run = stateRef.current;
-            const selected = run.selectedCandidateId;
-            if (
-              selected &&
-              run.phase === "repairing" &&
-              run.verdict === "failed" &&
-              run.candidates[selected].ids?.agentId === completedAgentId &&
-              next[completedAgentId] >= 2
-            ) {
-              dispatch({ type: "repair_completed", candidateId: selected });
-            }
-            return next;
           });
         }
         } catch {
@@ -186,10 +174,13 @@ export function useForgeRun() {
       type: "run_started",
       runId: "provisioning",
       provenance: "live",
+      missionId: state.missionId,
       startedAt: Date.now(),
     });
     try {
-      const response = await api<ForgeStartResponse>("/api/forge/start", {});
+      const response = await api<ForgeStartResponse>("/api/forge/start", {
+        missionId: state.missionId,
+      });
       dispatch({ type: "run_identified", runId: response.runId });
       dispatch({ type: "candidate_provisioned", candidateId: "north", ids: response.candidates.north });
       dispatch({ type: "candidate_provisioned", candidateId: "south", ids: response.candidates.south });
@@ -199,7 +190,7 @@ export function useForgeRun() {
     } finally {
       setBusy(false);
     }
-  }, [addEvent]);
+  }, [addEvent, state.missionId]);
 
   const judge = useCallback(async () => {
     if (!state.runId) return;
@@ -234,6 +225,10 @@ export function useForgeRun() {
     addEvent({ lane: state.selectedCandidateId, kind: "codex", label: "Repair evidence dispatched" });
     try {
       await api("/api/forge/repair", { runId: state.runId });
+      dispatch({
+        type: "repair_completed",
+        candidateId: state.selectedCandidateId,
+      });
     } catch (error) {
       dispatch({ type: "run_failed", message: error instanceof Error ? error.message : String(error) });
     } finally {
