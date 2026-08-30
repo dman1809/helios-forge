@@ -24,6 +24,7 @@ interface TimelineEnvelope {
 }
 
 let eventSequence = 0;
+const STATIC_DEMO = import.meta.env.VITE_FORGE_STATIC_DEMO === "true";
 
 export type ForgeConnectionStatus = "connected" | "reconnecting" | "offline";
 
@@ -31,7 +32,7 @@ export function useForgeRun() {
   const [state, dispatch] = useReducer(forgeReducer, createInitialForgeState("replay"));
   const [busy, setBusy] = useState(false);
   const [connectionStatus, setConnectionStatus] =
-    useState<ForgeConnectionStatus>("reconnecting");
+    useState<ForgeConnectionStatus>(STATIC_DEMO ? "connected" : "reconnecting");
   const [turnCounts, setTurnCounts] = useState<Record<string, number>>({});
   const stateRef = useRef(state);
   const replayTimers = useRef<number[]>([]);
@@ -65,6 +66,11 @@ export function useForgeRun() {
   );
 
   useEffect(() => {
+    if (STATIC_DEMO) {
+      setConnectionStatus("connected");
+      return;
+    }
+
     let stopped = false;
     let reconnectTimer: number | null = null;
     let socket: WebSocket | null = null;
@@ -320,6 +326,7 @@ export function useForgeRun() {
     state,
     busy,
     connectionStatus,
+    liveAvailable: !STATIC_DEMO,
     replayAvailable: Boolean(getForgeReplay(state.missionId)),
     readyToJudge,
     setMission,

@@ -1,3 +1,48 @@
+# Helios Forge // Mission Control
+
+Helios Forge turns autonomous software repair into an inspectable,
+evidence-backed competition. Two Codex agents receive the same mission and work
+independently inside isolated Runloop Devboxes. Deterministic checks and an
+external judge select the stronger patch, dispatch one evidence-only repair
+when needed, and re-verify the result before the run turns green.
+
+**Public demo:** [dman1809.github.io/helios-forge](https://dman1809.github.io/helios-forge/)
+
+The public build is a credential-free replay of recorded Runloop evidence. The
+full local build also supports live provisioning, streaming, judging, repair,
+verification, and explicit Devbox shutdown.
+
+## What the demo proves
+
+- Two Codex candidates execute in separate Runloop Devboxes.
+- Candidate patches are compared by deterministic mission-specific checks.
+- Selection records scores, changed-line counts, elapsed time, and the first
+  deciding field instead of relying on an opaque model preference.
+- A failing winner receives at most one evidence-only repair turn.
+- Diff, judge output, filtered traces, and a sanitized JSON report preserve the
+  evidence behind every verdict.
+
+## Run locally
+
+```bash
+bun install
+bun run build
+cd examples/combined-app
+cp .env.example .env
+bun run dev
+```
+
+See [the Forge runbook](examples/combined-app/docs/forge-demo.md) for the live
+Runloop prerequisites and recorded proof. The focused implementation lives in
+[`examples/combined-app`](examples/combined-app).
+
+## Built on Runloop Remote Agents SDK
+
+Helios Forge is implemented in the public Runloop Remote Agents SDK workspace.
+The upstream SDK documentation follows for provenance and reproduction.
+
+---
+
 # @runloop/remote-agents-sdk
 
 [![CI](https://github.com/runloopai/remote-agents-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/runloopai/remote-agents-sdk/actions/workflows/ci.yml)

@@ -141,17 +141,20 @@ function ModeButton({
   children,
   disabled,
   onClick,
+  title,
 }: {
   active: boolean;
   children: ReactNode;
   disabled?: boolean;
   onClick: () => void;
+  title?: string;
 }) {
   return (
     <button
       className={active ? "segment active" : "segment"}
       disabled={disabled}
       onClick={onClick}
+      title={title}
     >
       {children}
     </button>
@@ -257,7 +260,7 @@ export default function ForgeApp() {
         <div className="brand-block">
           <img
             className="helios-wordmark"
-            src="/helios-logo.png"
+            src={`${import.meta.env.BASE_URL}helios-logo.png`}
             alt="Helios Strategic Innovations"
           />
           <span className="brand-divider" />
@@ -290,8 +293,9 @@ export default function ForgeApp() {
             </ModeButton>
             <ModeButton
               active={state.provenance === "live"}
-              disabled={missionLocked}
+              disabled={missionLocked || !forge.liveAvailable}
               onClick={() => forge.switchMode("live")}
+              title={forge.liveAvailable ? undefined : "Live runs require the local Runloop service"}
             >
               Live
             </ModeButton>
