@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import {
   Activity,
   Bot,
@@ -385,13 +385,17 @@ export default function ForgeApp() {
               const active = verdictRank >= index + 1;
               const current = state.verdict === step.id;
               return (
-                <div
-                  className={`rail-step ${active ? "active" : ""} ${current ? "current" : ""}`}
-                  key={step.id}
-                >
-                  <span>{index + 1}</span>
-                  <strong>{step.label}</strong>
-                </div>
+                <Fragment key={step.id}>
+                  <span
+                    className={`rail-step ${active ? "active" : ""} ${current ? "current" : ""}`}
+                  >
+                    <span>{index + 1}</span>
+                    <strong>{step.label}</strong>
+                  </span>
+                  {index < VERDICT_STEPS.length - 1 && (
+                    <span className="rail-connector" aria-hidden="true" />
+                  )}
+                </Fragment>
               );
             })}
           </div>

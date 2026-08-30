@@ -189,7 +189,7 @@ main { width: min(1580px, 100%); margin: 0 auto; padding: 18px 24px 28px; }
   border-left: 1px solid var(--hairline);
   background: transparent;
   color: #878c94;
-  font: 600 11px/1 var(--font-ui);
+  font: 600 11px/1.35 var(--font-ui);
   cursor: pointer;
 }
 .mission-nav button:first-child { border-left: 0; }
@@ -199,7 +199,7 @@ main { width: min(1580px, 100%); margin: 0 auto; padding: 18px 24px 28px; }
 }
 .mission-nav button:focus-visible { outline: 1px solid #8c9199; outline-offset: -2px; }
 .mission-nav button svg { color: #a5aab1; }
-.mission-nav button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mission-nav button > span { padding: 1px 0 2px; white-space: nowrap; }
 .mission-nav button strong {
   min-width: 20px;
   height: 20px;
@@ -225,14 +225,14 @@ main { width: min(1580px, 100%); margin: 0 auto; padding: 18px 24px 28px; }
 .rail-steps {
   min-width: 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: auto minmax(18px, 1fr) auto minmax(18px, 1fr) auto;
   align-items: center;
+  gap: 18px;
 }
 .rail-step {
   height: 30px;
   min-width: 0;
-  display: grid;
-  grid-template-columns: 21px 72px minmax(18px, 1fr);
+  display: inline-flex;
   align-items: center;
   gap: 8px;
   color: var(--muted-low);
@@ -240,8 +240,7 @@ main { width: min(1580px, 100%); margin: 0 auto; padding: 18px 24px 28px; }
   text-transform: uppercase;
   font-weight: 700;
 }
-.rail-step::after { content: ""; height: 1px; margin: 0 12px; background: #34363b; }
-.rail-step:last-child::after { display: none; }
+.rail-connector { height: 1px; background: #34363b; }
 .rail-step > strong { font-weight: 700; }
 .rail-step > span {
   width: 21px;
@@ -445,7 +444,7 @@ main { width: min(1580px, 100%); margin: 0 auto; padding: 18px 24px 28px; }
   .rail-lead, .rail-run { justify-self: start; text-align: left; }
   .rail-steps { width: 100%; }
   .rail-step { min-width: 0; }
-  .rail-step::after { display: none; }
+  .rail-steps { gap: 10px; }
   .decision-row { padding: 8px 0; grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 10px; }
   .decision-row > div { min-height: 34px; padding: 0 10px; }
   .decision-row > div:nth-child(odd) { padding-left: 0; border-left: 0; }
