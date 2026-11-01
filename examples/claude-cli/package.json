@@ -10,6 +10,6 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.2.91",
     "@runloop/remote-agents-sdk": "workspace:*",
-    "@runloop/api-client": "^1.20.0"
+    "@runloop/api-client": "^3.0.0"
   }
 }
