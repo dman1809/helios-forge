@@ -1,37 +1,3 @@
 version: 2
-updates:
-  - package-ecosystem: "npm"
-    directory: "/sdk"
-    schedule:
-      interval: "weekly"
-    commit-message:
-      prefix: "chore(deps)"
-    labels:
-      - "dependencies"
-
-  - package-ecosystem: "npm"
-    directory: "/examples/claude-cli"
-    schedule:
-      interval: "weekly"
-    commit-message:
-      prefix: "chore(deps)"
-    labels:
-      - "dependencies"
-
-  - package-ecosystem: "npm"
-    directory: "/examples/acp-cli"
-    schedule:
-      interval: "weekly"
-    commit-message:
-      prefix: "chore(deps)"
-    labels:
-      - "dependencies"
-
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    commit-message:
-      prefix: "ci(deps)"
-    labels:
-      - "ci"
+# t1592u: Dependabot frozen (demo parent; product lane is helios-forge-cloud)
+updates: []
